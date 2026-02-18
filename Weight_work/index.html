@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,9 +8,11 @@
     <meta name="description" content="เครื่องมือคำนวณ Positional Weight และจัดสมดุลสายการผลิตตามหลัก Helgeson-Birnie">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <!-- Hero Header -->
     <header class="hero">
@@ -38,7 +41,8 @@
                         </div>
                         <div class="form-group">
                             <label for="node-time">เวลา (tᵢ)</label>
-                            <input type="number" id="node-time" min="0" step="0.1" placeholder="เช่น 4" autocomplete="off">
+                            <input type="number" id="node-time" min="0" step="0.1" placeholder="เช่น 4"
+                                autocomplete="off">
                         </div>
                         <button class="btn btn-primary" id="add-node-btn">เพิ่ม Node</button>
                     </div>
@@ -49,11 +53,15 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="edge-from">จาก (From)</label>
-                            <select id="edge-from"><option value="">เลือก Node</option></select>
+                            <select id="edge-from">
+                                <option value="">เลือก Node</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label for="edge-to">ไป (To)</label>
-                            <select id="edge-to"><option value="">เลือก Node</option></select>
+                            <select id="edge-to">
+                                <option value="">เลือก Node</option>
+                            </select>
                         </div>
                         <button class="btn btn-secondary" id="add-edge-btn">เพิ่ม Edge</button>
                     </div>
@@ -66,7 +74,13 @@
                     <h3>📋 รายการ Nodes</h3>
                     <div class="table-wrap">
                         <table id="nodes-table">
-                            <thead><tr><th>ขั้นตอน</th><th>เวลา (tᵢ)</th><th></th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>ขั้นตอน</th>
+                                    <th>เวลา (tᵢ)</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -76,7 +90,13 @@
                     <h3>🔗 รายการ Edges</h3>
                     <div class="table-wrap">
                         <table id="edges-table">
-                            <thead><tr><th>จาก</th><th>ไป</th><th></th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>จาก</th>
+                                    <th>ไป</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -115,7 +135,12 @@
                     <h3>ตาราง Positional Weight</h3>
                     <div class="table-wrap">
                         <table id="pw-table">
-                            <thead><tr><th>ขั้นตอน</th><th>Positional Weight (Wᵢ)</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>ขั้นตอน</th>
+                                    <th>Positional Weight (Wᵢ)</th>
+                                </tr>
+                            </thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -125,7 +150,13 @@
                     <h3>Ranked Positional Weight</h3>
                     <div class="table-wrap">
                         <table id="ranked-table">
-                            <thead><tr><th>ลำดับ</th><th>ขั้นตอน</th><th>Ranked Positional Weight</th></tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>ลำดับ</th>
+                                    <th>ขั้นตอน</th>
+                                    <th>Ranked Positional Weight</th>
+                                </tr>
+                            </thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -147,7 +178,8 @@
                 <div class="form-row center-row">
                     <div class="form-group">
                         <label for="cycle-time">Cycle Time (CT) นาที</label>
-                        <input type="number" id="cycle-time" min="1" step="0.1" placeholder="เช่น 21" autocomplete="off">
+                        <input type="number" id="cycle-time" min="1" step="0.1" placeholder="เช่น 21"
+                            autocomplete="off">
                     </div>
                     <button class="btn btn-accent btn-large" id="balance-btn">🏭 จัดสมดุลสายการผลิต</button>
                 </div>
@@ -211,12 +243,106 @@
                 </div>
             </div>
         </section>
+
+        <!-- Section 5: Region Approach (Mansoor) -->
+        <section class="panel" id="region-panel">
+            <div class="panel-header">
+                <span class="step-badge region-badge">5</span>
+                <h2>การจัดสมดุลโดยใช้ขอบเขตพื้นที่ (Region Approach — Mansoor)</h2>
+            </div>
+            <div class="formula-box glass region-formula">
+                <p>จัดงานตามเขตพื้นที่ (ALAP) → เรียงตามเวลามากไปน้อย → จัดเข้าสถานี ≤ CT</p>
+            </div>
+            <div class="card glass">
+                <div class="form-row center-row">
+                    <div class="form-group">
+                        <label for="region-cycle-time">Cycle Time (CT) นาที</label>
+                        <input type="number" id="region-cycle-time" min="1" step="0.1" placeholder="เช่น 21"
+                            autocomplete="off">
+                    </div>
+                    <button class="btn btn-region btn-large" id="region-btn">🗺️ จัดสมดุลแบบ Region Approach</button>
+                </div>
+            </div>
+
+            <!-- Region Assignment Table -->
+            <div class="card glass" id="region-assign-card" style="display:none;">
+                <h3>ตารางลำดับของงานในแต่ละเขตพื้นที่</h3>
+                <div class="table-wrap">
+                    <table id="region-assign-table">
+                        <thead>
+                            <tr>
+                                <th>เขตพื้นที่</th>
+                                <th>งาน (เรียงลำดับเวลางาน)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Region Station Assignment Table -->
+            <div class="card glass" id="region-station-card" style="display:none;">
+                <h3>ตารางการจัดงานให้กับสถานีงาน</h3>
+                <div class="table-wrap">
+                    <table id="region-station-table">
+                        <thead>
+                            <tr>
+                                <th>สถานีงาน</th>
+                                <th>งาน</th>
+                                <th>เวลาของสถานีงาน (นาที)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Region Summary -->
+            <div class="card glass" id="region-summary-card" style="display:none;">
+                <h3>สรุปผลการจัดสมดุลแบบ Region Approach</h3>
+                <div class="table-wrap">
+                    <table id="region-summary-table">
+                        <thead>
+                            <tr>
+                                <th>Station</th>
+                                <th>Jobs</th>
+                                <th>Station Time</th>
+                                <th>Station Efficiency %</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Region Efficiency -->
+            <div class="stats-grid" id="region-stats-grid" style="display:none;">
+                <div class="stat-card glass">
+                    <span class="stat-label">จำนวนสถานีงาน (M)</span>
+                    <span class="stat-value" id="region-stat-stations">—</span>
+                </div>
+                <div class="stat-card glass">
+                    <span class="stat-label">Cycle Time (CT)</span>
+                    <span class="stat-value" id="region-stat-ct">—</span>
+                </div>
+                <div class="stat-card glass">
+                    <span class="stat-label">Σtᵢ (เวลารวม)</span>
+                    <span class="stat-value" id="region-stat-total-time">—</span>
+                </div>
+                <div class="stat-card accent glass">
+                    <span class="stat-label">Line Efficiency %</span>
+                    <span class="stat-value" id="region-stat-line-eff">—</span>
+                    <span class="stat-formula">= 100 × Σtᵢ / (CT × M)</span>
+                </div>
+            </div>
+        </section>
     </main>
 
     <footer>
-        <p>Helgeson-Birnie Positional Weight Calculator &copy; 2026</p>
+        <p>Helgeson-Birnie & Region Approach Line Balancing Calculator &copy; 2026</p>
     </footer>
 
     <script src="app.js"></script>
 </body>
+
 </html>

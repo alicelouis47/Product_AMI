@@ -30,6 +30,13 @@ const clearAllBtn = $('#clear-all-btn');
 const canvas = $('#network-canvas');
 const ctx = canvas.getContext('2d');
 
+// Region Approach
+const regionBtn = $('#region-btn');
+const regionCycleTimeInput = $('#region-cycle-time');
+const regionAssignTableBody = $('#region-assign-table tbody');
+const regionStationTableBody = $('#region-station-table tbody');
+const regionSummaryTableBody = $('#region-summary-table tbody');
+
 // ---- Event Listeners ----
 addNodeBtn.addEventListener('click', addNode);
 addEdgeBtn.addEventListener('click', addEdge);
@@ -37,6 +44,8 @@ calcPwBtn.addEventListener('click', calculatePositionalWeights);
 balanceBtn.addEventListener('click', performLineBalancing);
 loadExampleBtn.addEventListener('click', loadExample);
 clearAllBtn.addEventListener('click', clearAll);
+regionBtn.addEventListener('click', performRegionApproach);
+regionCycleTimeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') performRegionApproach(); });
 
 // Enter key support
 nodeIdInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { nodeTimeInput.focus(); } });
@@ -575,6 +584,7 @@ function loadExample() {
     updateEdgeSelectors();
     drawNetwork();
     cycleTimeInput.value = 21;
+    regionCycleTimeInput.value = 21;
     showToast('โหลดตัวอย่าง 21 Nodes สำเร็จ');
 }
 
@@ -589,12 +599,20 @@ function clearAll() {
     rankedTableBody.innerHTML = '';
     balanceTableBody.innerHTML = '';
     summaryTableBody.innerHTML = '';
+    regionAssignTableBody.innerHTML = '';
+    regionStationTableBody.innerHTML = '';
+    regionSummaryTableBody.innerHTML = '';
     $('#no-pw').style.display = 'block';
     $('#no-ranked').style.display = 'block';
     $('#balance-result-card').style.display = 'none';
     $('#summary-card').style.display = 'none';
     $('#stats-grid').style.display = 'none';
+    $('#region-assign-card').style.display = 'none';
+    $('#region-station-card').style.display = 'none';
+    $('#region-summary-card').style.display = 'none';
+    $('#region-stats-grid').style.display = 'none';
     cycleTimeInput.value = '';
+    regionCycleTimeInput.value = '';
     drawNetwork();
     showToast('ล้างข้อมูลทั้งหมดแล้ว');
 }
@@ -638,6 +656,305 @@ function showToast(message, type = 'success') {
         toast.style.transform = 'translateX(-50%) translateY(20px)';
         setTimeout(() => toast.remove(), 300);
     }, 2500);
+}
+
+// ---- Region Approach (Mansoor) ----
+function computeALAPRegions() {
+    // Step 1: Build adjacency and compute earliest levels (ASAP)
+    const adj = {};
+    const inDeg = {};
+    nodes.forEach(n => { adj[n.id] = []; inDeg[n.id] = 0; });
+    edges.forEach(e => {
+        if (adj[e.from]) adj[e.from].push(e.to);
+        if (inDeg[e.to] !== undefined) inDeg[e.to]++;
+    });
+
+    // ASAP levels (earliest start)
+    const asapLevels = {};
+    const queue = [];
+    nodes.forEach(n => { if (inDeg[n.id] === 0) { queue.push(n.id); asapLevels[n.id] = 0; } });
+    let maxLevel = 0;
+    const inDegCopy = { ...inDeg };
+    while (queue.length > 0) {
+        const curr = queue.shift();
+        (adj[curr] || []).forEach(next => {
+            const newLevel = asapLevels[curr] + 1;
+            if (asapLevels[next] === undefined || newLevel > asapLevels[next]) {
+                asapLevels[next] = newLevel;
+            }
+            inDegCopy[next]--;
+            if (inDegCopy[next] === 0) queue.push(next);
+            if (newLevel > maxLevel) maxLevel = newLevel;
+        });
+    }
+
+    // Handle isolated nodes
+    nodes.forEach(n => { if (asapLevels[n.id] === undefined) asapLevels[n.id] = 0; });
+
+    // Step 2: ALAP levels (latest start)
+    // Leaf nodes get ALAP = maxLevel, others = min(ALAP of successors) - 1
+    const alapLevels = {};
+    // Process in reverse topological order
+    const revTopo = [];
+    const visited = new Set();
+    function dfsPost(nodeId) {
+        if (visited.has(nodeId)) return;
+        visited.add(nodeId);
+        (adj[nodeId] || []).forEach(s => dfsPost(s));
+        revTopo.push(nodeId);
+    }
+    nodes.forEach(n => dfsPost(n.id));
+
+    revTopo.forEach(nId => {
+        const succs = adj[nId] || [];
+        if (succs.length === 0) {
+            alapLevels[nId] = maxLevel;
+        } else {
+            let minSuccLevel = Infinity;
+            succs.forEach(s => {
+                if (alapLevels[s] !== undefined && alapLevels[s] < minSuccLevel) {
+                    minSuccLevel = alapLevels[s];
+                }
+            });
+            alapLevels[nId] = minSuccLevel - 1;
+        }
+    });
+
+    return { alapLevels, maxLevel };
+}
+
+function performRegionApproach() {
+    const ct = parseFloat(regionCycleTimeInput.value);
+    if (isNaN(ct) || ct <= 0) return showToast('กรุณาใส่ Cycle Time ที่ถูกต้อง', 'error');
+    if (nodes.length === 0) return showToast('กรุณาเพิ่ม Node ก่อน', 'error');
+
+    // Step 1 & 2: Compute ALAP regions
+    const { alapLevels, maxLevel } = computeALAPRegions();
+
+    // Group nodes by ALAP region
+    const regionGroups = {};
+    const timeMap = {};
+    nodes.forEach(n => {
+        timeMap[n.id] = n.time;
+        const r = alapLevels[n.id];
+        if (!regionGroups[r]) regionGroups[r] = [];
+        regionGroups[r].push(n);
+    });
+
+    // Sort tasks within each region by time descending
+    const regionKeys = Object.keys(regionGroups).map(Number).sort((a, b) => a - b);
+    regionKeys.forEach(r => {
+        regionGroups[r].sort((a, b) => b.time - a.time);
+    });
+
+    // Roman numeral conversion
+    const toRoman = (num) => {
+        const vals = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
+        const syms = ['M', 'CM', 'D', 'CD', 'C', 'XC', 'L', 'XL', 'X', 'IX', 'V', 'IV', 'I'];
+        let result = '';
+        for (let i = 0; i < vals.length; i++) {
+            while (num >= vals[i]) { result += syms[i]; num -= vals[i]; }
+        }
+        return result;
+    };
+
+    // Render region assignment table
+    $('#region-assign-card').style.display = 'block';
+    let regionIdx = 0;
+    regionAssignTableBody.innerHTML = regionKeys.map(r => {
+        regionIdx++;
+        const tasksStr = regionGroups[r].map(n => n.id).join(', ');
+        return `<tr>
+            <td><strong>${toRoman(regionIdx)}</strong></td>
+            <td>${tasksStr}</td>
+        </tr>`;
+    }).join('');
+
+    // Build ordered task list: by region, then by time desc within region
+    const orderedTasks = [];
+    regionKeys.forEach(r => {
+        regionGroups[r].forEach(n => orderedTasks.push({ id: n.id, time: n.time, region: r }));
+    });
+
+    // Build predecessor map
+    const predecessors = {};
+    nodes.forEach(n => predecessors[n.id] = []);
+    edges.forEach(e => {
+        if (predecessors[e.to]) predecessors[e.to].push(e.from);
+    });
+
+    // Step 3 & 4: Assign tasks to stations (flexible greedy)
+    const assigned = new Set();
+    const stations = [];
+    let stationNum = 1;
+    let currentStation = { stationNum, jobs: [] };
+    let stationTime = 0;
+    const taskQueue = [...orderedTasks];
+
+    while (taskQueue.length > 0) {
+        let bestFitIdx = -1;
+        let bestFitGap = Infinity;
+
+        // Try to find the best task that fits and has all predecessors assigned
+        for (let i = 0; i < taskQueue.length; i++) {
+            const task = taskQueue[i];
+            const allPredsAssigned = predecessors[task.id].every(p => assigned.has(p));
+            if (!allPredsAssigned) continue;
+
+            const newTime = stationTime + task.time;
+            if (newTime <= ct) {
+                const gap = ct - newTime;
+                // Prefer tasks that fill the station closer to CT
+                // But also respect the region order (prefer earlier region tasks first)
+                if (bestFitIdx === -1) {
+                    bestFitIdx = i;
+                    bestFitGap = gap;
+                } else {
+                    // If this task has a gap of 0 (perfect fit), prefer it
+                    if (gap === 0) {
+                        bestFitIdx = i;
+                        bestFitGap = 0;
+                        break;
+                    }
+                    // Otherwise prefer the first eligible task (maintains region order)
+                    // unless the current best leaves too much gap and a later task fills better
+                    if (gap < bestFitGap && bestFitGap > 0) {
+                        // Only swap if the first eligible has already been added or the gap improvement is significant
+                    }
+                }
+                // Use the first eligible task (region order priority)
+                break;
+            }
+        }
+
+        if (bestFitIdx !== -1) {
+            const task = taskQueue[bestFitIdx];
+            stationTime += task.time;
+            currentStation.jobs.push({ id: task.id, time: task.time });
+            assigned.add(task.id);
+            taskQueue.splice(bestFitIdx, 1);
+        } else {
+            // No task fits in current station — close it and open new one
+            if (currentStation.jobs.length > 0) {
+                stations.push(currentStation);
+            }
+            stationNum++;
+            stationTime = 0;
+            currentStation = { stationNum, jobs: [] };
+
+            // Force the first eligible task
+            let forced = false;
+            for (let i = 0; i < taskQueue.length; i++) {
+                const task = taskQueue[i];
+                if (predecessors[task.id].every(p => assigned.has(p))) {
+                    stationTime += task.time;
+                    currentStation.jobs.push({ id: task.id, time: task.time });
+                    assigned.add(task.id);
+                    taskQueue.splice(i, 1);
+                    forced = true;
+                    break;
+                }
+            }
+            if (!forced && taskQueue.length > 0) {
+                showToast('ไม่สามารถจัดสมดุลได้ — ตรวจสอบ Precedence', 'error');
+                return;
+            }
+        }
+
+        // After assigning a task, try to fill remaining gap with later tasks
+        if (stationTime < ct && taskQueue.length > 0) {
+            let filled = true;
+            while (filled && stationTime < ct) {
+                filled = false;
+                // Search for tasks that fill the remaining gap, preferring perfect or near-perfect fit
+                let bestIdx = -1;
+                let bestGap = Infinity;
+                for (let i = 0; i < taskQueue.length; i++) {
+                    const task = taskQueue[i];
+                    if (!predecessors[task.id].every(p => assigned.has(p))) continue;
+                    const newTime = stationTime + task.time;
+                    if (newTime <= ct) {
+                        const gap = ct - newTime;
+                        if (gap < bestGap) {
+                            bestGap = gap;
+                            bestIdx = i;
+                        }
+                        if (gap === 0) break;
+                    }
+                }
+                if (bestIdx !== -1) {
+                    const task = taskQueue[bestIdx];
+                    stationTime += task.time;
+                    currentStation.jobs.push({ id: task.id, time: task.time });
+                    assigned.add(task.id);
+                    taskQueue.splice(bestIdx, 1);
+                    filled = true;
+                }
+            }
+        }
+
+        // If station is full or no more tasks fit, close station when next iteration finds no fit
+    }
+
+    if (currentStation.jobs.length > 0) {
+        stations.push(currentStation);
+    }
+
+    // Render results
+    renderRegionStationTable(stations, ct);
+    renderRegionSummaryTable(stations, ct);
+    renderRegionEfficiency(stations, ct);
+    showToast(`Region Approach — ${stations.length} สถานีงาน ✓`);
+}
+
+function renderRegionStationTable(stations, ct) {
+    $('#region-station-card').style.display = 'block';
+    regionStationTableBody.innerHTML = stations.map(s => {
+        const stTime = s.jobs.reduce((sum, j) => sum + j.time, 0);
+        const jobIds = s.jobs.map(j => j.id).join(', ');
+        return `<tr>
+            <td><strong>${s.stationNum}</strong></td>
+            <td>${jobIds}</td>
+            <td>${stTime}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderRegionSummaryTable(stations, ct) {
+    $('#region-summary-card').style.display = 'block';
+    const totalTime = nodes.reduce((sum, n) => sum + n.time, 0);
+    let html = '';
+    stations.forEach(s => {
+        const stTime = s.jobs.reduce((sum, j) => sum + j.time, 0);
+        const eff = ((stTime / ct) * 100).toFixed(2);
+        const jobIds = s.jobs.map(j => j.id).join(', ');
+        html += `<tr>
+            <td><strong>${s.stationNum}</strong></td>
+            <td>${jobIds}</td>
+            <td>${stTime}</td>
+            <td>${eff}</td>
+        </tr>`;
+    });
+    const lineEff = ((totalTime / (ct * stations.length)) * 100).toFixed(2);
+    html += `<tr style="border-top: 2px solid var(--accent-3); font-weight: 700;">
+        <td>Total</td><td></td><td>${totalTime}</td><td></td>
+    </tr>`;
+    html += `<tr style="font-weight: 700;">
+        <td colspan="3" style="text-align:right;">Line Efficiency %</td>
+        <td style="color: var(--accent-3); font-size: 1.1rem;">${lineEff}</td>
+    </tr>`;
+    regionSummaryTableBody.innerHTML = html;
+}
+
+function renderRegionEfficiency(stations, ct) {
+    $('#region-stats-grid').style.display = 'grid';
+    const totalTime = nodes.reduce((sum, n) => sum + n.time, 0);
+    const M = stations.length;
+    const lineEff = ((totalTime / (ct * M)) * 100).toFixed(2);
+    $('#region-stat-stations').textContent = M;
+    $('#region-stat-ct').textContent = ct + ' นาที';
+    $('#region-stat-total-time').textContent = totalTime + ' นาที';
+    $('#region-stat-line-eff').textContent = lineEff + '%';
 }
 
 // ---- Resize handler ----

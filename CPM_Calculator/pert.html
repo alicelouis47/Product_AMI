@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PERT/CPM Calculator Pro</title>
+    <!-- Modern Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Vis Network for AON Graph -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="stylesheet" href="pert_style.css">
+</head>
+
+<body>
+    <div class="background-elements">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div class="icon-container">
+                    <i class="fa-solid fa-diagram-project"></i>
+                </div>
+                <div>
+                    <h1>PERT / CPM Calculator Pro</h1>
+                    <p>การวิเคราะห์เส้นทางสายวิกฤต และการประเมินเวลาโครงการ (Beta Distribution)</p>
+                </div>
+                <!-- Vvv Added Link vvv -->
+                <div style="margin-left: auto;">
+                    <a href="index.html" class="btn btn-outline" style="text-decoration: none;"><i
+                            class="fa-solid fa-arrow-left"></i> กลับไปหน้า CPM แบบปกติ</a>
+                </div>
+                <!-- ^^^ Added Link ^^^ -->
+            </div>
+        </header>
+
+        <main>
+            <section class="card frosted-glass animate-slide-up" style="animation-delay: 0.1s;">
+                <div class="card-header">
+                    <div class="title-group">
+                        <i class="fa-solid fa-list-check title-icon"></i>
+                        <h2>ข้อมูลกิจกรรม (Activity Data)</h2>
+                    </div>
+                    <div class="action-group">
+                        <button id="addDemoDataBtn" class="btn btn-outline" title="โหลดข้อมูลตัวอย่างจากโจทย์">
+                            <i class="fa-solid fa-file-import"></i> ข้อมูลตัวอย่าง
+                        </button>
+                        <button id="resetBtn" class="btn btn-danger-outline">
+                            <i class="fa-solid fa-rotate-right"></i> ล้างข้อมูล
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table id="activityTable">
+                        <thead>
+                            <tr>
+                                <th>กิจกรรม<br><small>(Activity)</small></th>
+                                <th>กิจกรรมที่ต้องทำก่อน<br><small>(Predecessors)</small></th>
+                                <th class="text-center" title="เวลาที่งานจะเสร็จเร็วที่สุดที่เป็นไปได้">
+                                    a<br><small>(Optimistic)</small></th>
+                                <th class="text-center" title="เวลาที่งานจะเสร็จที่เป็นไปได้มากที่สุด">m<br><small>(Most
+                                        Likely)</small></th>
+                                <th class="text-center" title="เวลาที่งานจะเสร็จช้าที่สุดที่เป็นไปได้">
+                                    b<br><small>(Pessimistic)</small></th>
+                                <th class="text-center">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Rows will be dynamically added here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card-footer mt-2">
+                    <button id="addRowBtn" class="btn btn-primary">
+                        <i class="fa-solid fa-plus"></i> เพิ่มกิจกรรม (Add Row)
+                    </button>
+                    <button id="calculateBtn" class="btn btn-success float-right glow">
+                        <i class="fa-solid fa-calculator"></i> คำนวณผลลัพธ์ (Calculate)
+                    </button>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="resultsSection" class="card frosted-glass animate-slide-up hidden">
+                <div class="card-header">
+                    <div class="title-group">
+                        <i class="fa-solid fa-chart-line title-icon text-success"></i>
+                        <h2>ผลการคำนวณโครงการ (Project Analysis)</h2>
+                    </div>
+                </div>
+
+                <div class="summary-cards">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fa-regular fa-clock"></i></div>
+                        <h3>เวลาเสร็จโครงการโดยเฉลี่ย</h3>
+                        <div class="value highlight" id="resDuration">0.00</div>
+                        <div class="unit">สัปดาห์ / หน่วยเวลา</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fa-solid fa-chart-pie"></i></div>
+                        <h3>ความแปรปรวนของโครงการ (σ²)</h3>
+                        <div class="value highlight" id="resVariance">0.00</div>
+                        <div class="unit">ผลรวมความแปรปรวนบนเส้นทางวิกฤต</div>
+                    </div>
+                    <div class="stat-card critical-card">
+                        <div class="stat-icon"><i class="fa-solid fa-route"></i></div>
+                        <h3>เส้นทางวิกฤต (Critical Path)</h3>
+                        <div class="value critical-text" id="resCriticalPath">-</div>
+                        <div class="unit">กิจกรรมที่ล่าช้าไม่ได้ (Slack = 0)</div>
+                    </div>
+                </div>
+
+                <div class="table-responsive mt-3">
+                    <h3 class="section-subtitle">ตารางเวลาแต่ละกิจกรรม</h3>
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th title="Activity">กิจกรรม</th>
+                                <th title="Expected Time (t)">ค่าเฉลี่ย (t)</th>
+                                <th title="Variance (σ²)">แปรปรวน (σ²)</th>
+                                <th title="Earliest Start">ES</th>
+                                <th title="Earliest Finish">EF</th>
+                                <th title="Latest Start">LS</th>
+                                <th title="Latest Finish">LF</th>
+                                <th title="Slack Time (LS-ES)">Slack</th>
+                                <th title="Is Critical Activity?">วิกฤต? (Critical)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultTableBody">
+                            <!-- Results will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Network Graph Section -->
+                <div class="graph-section mt-4">
+                    <div class="card-header border-none">
+                        <div class="title-group">
+                            <i class="fa-solid fa-project-diagram title-icon text-primary"></i>
+                            <h3 style="margin: 0; font-size: 1.3rem;">แผนภาพเครือข่าย AON (Activity-on-Node)</h3>
+                        </div>
+                    </div>
+                    <p class="text-muted mb-2">แสดงความสัมพันธ์ของกิจกรรมและไฮไลท์เส้นทางวิกฤต (สีแดง)
+                        คุณสามารถลากโหนดเพื่อจัดตำแหน่งได้</p>
+                    <div id="networkGraph" class="graph-container"></div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; PERT / CPM Advanced Analyzer Tool. Built with modern web tech.</p>
+        </footer>
+    </div>
+
+    <script src="pert_app.js"></script>
+</body>
+
+</html>

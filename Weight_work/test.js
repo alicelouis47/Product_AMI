@@ -9,7 +9,7 @@ let edges = []; // { from: number, to: number }
 let positionalWeights = {}; // nodeId -> weight
 
 // ---- DOM References ----
-const $ = (sel) => document.querySelector(sel);
+const $ = () => ({ addEventListener: ()=>{}, style: {}, textContent: "", innerHTML: "", value: "" });
 const nodeIdInput = $('#node-id');
 const nodeTimeInput = $('#node-time');
 const addNodeBtn = $('#add-node-btn');
@@ -616,7 +616,7 @@ function clearAll() {
 
 // ---- Toast Notification ----
 function showToast(message, type = 'success') {
-    const existing = document.querySelector('.toast');
+    const existing = $('.toast');
     if (existing) existing.remove();
 
     const toast = document.createElement('div');
@@ -738,14 +738,10 @@ function performRegionApproach() {
         regionGroups[r].push(n);
     });
 
-    // Sort regions ASCENDING (Lowest ALAP = Region I)
+    // Sort tasks within each region by time descending
     const regionKeys = Object.keys(regionGroups).map(Number).sort((a, b) => a - b);
     regionKeys.forEach(r => {
-        // Sort tasks within each region by time descending as secondary criterion
-        regionGroups[r].sort((a, b) => {
-            if (b.time !== a.time) return b.time - a.time;
-            return a.id - b.id; // tiebreaker
-        });
+        regionGroups[r].sort((a, b) => b.time - a.time);
     });
 
     // Roman numeral conversion
@@ -784,67 +780,61 @@ function performRegionApproach() {
         if (predecessors[e.to]) predecessors[e.to].push(e.from);
     });
 
-    // Step 3 & 4: Assign tasks to stations to maximize station time
+    // Step 3 & 4: Assign tasks to stations
+    // For each station: pick first eligible from ordered list, then fill with best-fit
     const assigned = new Set();
     const stations = [];
     let stationNum = 1;
 
     while (assigned.size < nodes.length) {
-        let validCombinations = [];
+        let stationJobs = [];
+        let sTime = 0;
 
-        function explore(currentSubset, currentSum) {
-            validCombinations.push({ subset: [...currentSubset], sum: currentSum });
-
-            let tempAssigned = new Set(assigned);
-            currentSubset.forEach(id => tempAssigned.add(id));
-
-            for (let i = 0; i < orderedTasks.length; i++) {
-                const task = orderedTasks[i];
-                if (!tempAssigned.has(task.id)) {
-                    const canAdd = predecessors[task.id].every(p => tempAssigned.has(p));
-                    if (canAdd && currentSum + task.time <= ct) {
-                        const lastIdx = currentSubset.length > 0
-                            ? orderedTasks.findIndex(t => t.id === currentSubset[currentSubset.length - 1])
-                            : -1;
-
-                        if (i > lastIdx) {
-                            explore([...currentSubset, task.id], currentSum + task.time);
-                        }
-                    }
-                }
+        // Pick the first eligible task from ordered list
+        const remaining = orderedTasks.filter(t => !assigned.has(t.id));
+        let firstPicked = false;
+        for (const task of remaining) {
+            if (!predecessors[task.id].every(p => assigned.has(p))) continue;
+            if (sTime + task.time <= ct) {
+                sTime += task.time;
+                stationJobs.push({ id: task.id, time: task.time });
+                assigned.add(task.id);
+                firstPicked = true;
+                break;
             }
         }
 
-        explore([], 0);
-
-        if (validCombinations.length <= 1) { // Only the empty subset found
+        if (!firstPicked) {
             showToast('ไม่สามารถจัดสมดุลได้ — ตรวจสอบ Precedence', 'error');
             return;
         }
 
-        // Sort to find the best combination
-        validCombinations.sort((a, b) => {
-            if (b.sum !== a.sum) return b.sum - a.sum; // Maximize sum
-            // If sum is equal, prefer subsets that contain elements appearing earlier in orderedTasks
-            for (const t of orderedTasks) {
-                const aHas = a.subset.includes(t.id);
-                const bHas = b.subset.includes(t.id);
-                if (aHas && !bHas) return -1;
-                if (bHas && !aHas) return 1;
+        // Fill remaining capacity with best-fit eligible tasks
+        let filling = true;
+        while (filling && sTime < ct) {
+            filling = false;
+            const rem = ct - sTime;
+            let bestTask = null;
+            let bestGap = Infinity;
+            for (const task of orderedTasks) {
+                if (assigned.has(task.id)) continue;
+                if (!predecessors[task.id].every(p => assigned.has(p))) continue;
+                if (task.time <= rem) {
+                    const gap = rem - task.time;
+                    if (gap < bestGap) {
+                        bestGap = gap;
+                        bestTask = task;
+                    }
+                    if (gap === 0) break;
+                }
             }
-            return 0;
-        });
-
-        const bestComb = validCombinations[0];
-
-        // Map back to jobs
-        const stationJobs = bestComb.subset.map(id => {
-            const t = orderedTasks.find(x => x.id === id);
-            return { id: t.id, time: t.time };
-        });
-
-        // Add to assigned
-        bestComb.subset.forEach(id => assigned.add(id));
+            if (bestTask) {
+                sTime += bestTask.time;
+                stationJobs.push({ id: bestTask.id, time: bestTask.time });
+                assigned.add(bestTask.id);
+                filling = true;
+            }
+        }
 
         stations.push({ stationNum, jobs: stationJobs });
         stationNum++;
@@ -913,3 +903,27 @@ window.addEventListener('resize', () => drawNetwork());
 
 // ---- Initial draw ----
 drawNetwork();
+
+loadExample();
+calculatePositionalWeights();
+const { alapLevels, maxLevel } = computeALAPRegions();
+console.log('ALAP:', alapLevels);
+
+// Test the assignment
+const ct = 21;
+const regionGroups = {};
+nodes.forEach(n => {
+    const r = alapLevels[n.id];
+    if (!regionGroups[r]) regionGroups[r] = [];
+    regionGroups[r].push(n);
+});
+const regionKeys = Object.keys(regionGroups).map(Number).sort((a, b) => a - b);
+regionKeys.forEach(r => {
+    regionGroups[r].sort((a, b) => b.time - a.time);
+});
+const orderedTasks = [];
+regionKeys.forEach(r => {
+    regionGroups[r].forEach(n => orderedTasks.push({ id: n.id, time: n.time, region: r }));
+});
+
+console.log('Ordered Tasks:', orderedTasks.map(t => t.id).join(', '));

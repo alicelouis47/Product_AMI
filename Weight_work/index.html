@@ -53,15 +53,11 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="edge-from">จาก (From)</label>
-                            <select id="edge-from">
-                                <option value="">เลือก Node</option>
-                            </select>
+                            <input type="number" id="edge-from" min="1" placeholder="เช่น 1" autocomplete="off">
                         </div>
                         <div class="form-group">
                             <label for="edge-to">ไป (To)</label>
-                            <select id="edge-to">
-                                <option value="">เลือก Node</option>
-                            </select>
+                            <input type="text" id="edge-to" placeholder="ระบุหลายค่าได้ เช่น 2, 3, 4" autocomplete="off">
                         </div>
                         <button class="btn btn-secondary" id="add-edge-btn">เพิ่ม Edge</button>
                     </div>

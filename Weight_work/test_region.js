@@ -9,7 +9,7 @@ let edges = []; // { from: number, to: number }
 let positionalWeights = {}; // nodeId -> weight
 
 // ---- DOM References ----
-const $ = (sel) => document.querySelector(sel);
+const $ = () => ({ addEventListener: ()=>{}, style: {}, textContent: "", innerHTML: "", value: "" });
 const nodeIdInput = $('#node-id');
 const nodeTimeInput = $('#node-time');
 const addNodeBtn = $('#add-node-btn');
@@ -738,14 +738,11 @@ function performRegionApproach() {
         regionGroups[r].push(n);
     });
 
-    // Sort regions ASCENDING (Lowest ALAP = Region I)
-    const regionKeys = Object.keys(regionGroups).map(Number).sort((a, b) => a - b);
+    // Sort regions descending (Highest ALAP = earliest tasks = first Region)
+    const regionKeys = Object.keys(regionGroups).map(Number).sort((a, b) => b - a);
     regionKeys.forEach(r => {
         // Sort tasks within each region by time descending as secondary criterion
-        regionGroups[r].sort((a, b) => {
-            if (b.time !== a.time) return b.time - a.time;
-            return a.id - b.id; // tiebreaker
-        });
+        regionGroups[r].sort((a, b) => b.time - a.time);
     });
 
     // Roman numeral conversion
@@ -913,3 +910,44 @@ window.addEventListener('resize', () => drawNetwork());
 
 // ---- Initial draw ----
 drawNetwork();
+
+// Override showToast to prevent errors
+function showToast(msg) { console.log("TOAST:", msg); }
+
+loadExample();
+calculatePositionalWeights();
+regionCycleTimeInput.value = "21";
+nodesTableBody = { innerHTML: '' };
+edgesTableBody = { innerHTML: '' };
+pwTableBody = { innerHTML: '' };
+rankedTableBody = { innerHTML: '' };
+balanceTableBody = { innerHTML: '' };
+summaryTableBody = { innerHTML: '' };
+regionAssignTableBody = { innerHTML: '' };
+regionStationTableBody = { innerHTML: '' };
+regionSummaryTableBody = { innerHTML: '' };
+
+const ct = 21;
+let _stations = undefined;
+
+// We need to capture the output of stations
+const original_renderBalanceLine = renderBalanceTable;
+renderBalanceTable = (stations) => {};
+const original_renderSummary = renderSummaryTable;
+renderSummaryTable = (stations) => {};
+const original_renderEff = renderEfficiency;
+renderEfficiency = (stations) => {};
+
+// Let's hook the region logic specifically
+// Wrap performRegionApproach to capture stations
+const lines = performRegionApproach.toString().split('\n');
+// We can just add a console.log(stations) before showToast
+let newFunc = lines.map(line => {
+    if (line.includes('showToast(') && line.includes('จัดสมดุล')) {
+        return 'console.log("STATIONS:", JSON.stringify(stations, null, 2));\n' + line;
+    }
+    return line;
+}).join('\n');
+eval("performRegionApproach = " + newFunc);
+
+performRegionApproach();

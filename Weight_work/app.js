@@ -233,81 +233,36 @@ function performLineBalancing() {
     // Ranked order (descending by positional weight)
     const ranked = nodes
         .map(n => ({ id: n.id, time: n.time, w: positionalWeights[n.id] }))
-        .sort((a, b) => b.w - a.w);
+        .sort((a, b) => b.w - a.w || b.time - a.time);
 
     const assigned = new Set();
-    const stations = []; // [ { stationNum, jobs: [{id, time, cumTime}] } ]
+    const stations = [];
     let stationNum = 1;
-    let currentStation = { stationNum, jobs: [] };
-    let stationTime = 0;
 
-    // Copy ranked list as the task queue
-    const taskQueue = [...ranked];
+    // Single pass per station: scan entire ranked list, add every eligible fitting task
+    while (assigned.size < nodes.length) {
+        let stationJobs = [];
+        let sTime = 0;
 
-    while (taskQueue.length > 0) {
-        let foundTask = false;
-
-        for (let i = 0; i < taskQueue.length; i++) {
-            const task = taskQueue[i];
-
-            // Check if all predecessors are assigned
+        const remaining = ranked.filter(t => !assigned.has(t.id));
+        for (const task of remaining) {
             const allPredsAssigned = predecessors[task.id].every(p => assigned.has(p));
             if (!allPredsAssigned) continue;
 
-            // Check if fits in current station
-            if (stationTime + task.time <= ct) {
-                stationTime += task.time;
-                currentStation.jobs.push({
-                    id: task.id,
-                    time: task.time,
-                    cumTime: stationTime
-                });
+            if (sTime + task.time <= ct) {
+                sTime += task.time;
+                stationJobs.push({ id: task.id, time: task.time, cumTime: sTime });
                 assigned.add(task.id);
-                taskQueue.splice(i, 1);
-                foundTask = true;
-                break;
             }
         }
 
-        if (!foundTask) {
-            // Close current station and open new one
-            if (currentStation.jobs.length > 0) {
-                stations.push(currentStation);
-            }
-            stationNum++;
-            stationTime = 0;
-            currentStation = { stationNum, jobs: [] };
-
-            // Try again — if still no task fits, force the first eligible
-            let forced = false;
-            for (let i = 0; i < taskQueue.length; i++) {
-                const task = taskQueue[i];
-                const allPredsAssigned = predecessors[task.id].every(p => assigned.has(p));
-                if (!allPredsAssigned) continue;
-
-                stationTime += task.time;
-                currentStation.jobs.push({
-                    id: task.id,
-                    time: task.time,
-                    cumTime: stationTime
-                });
-                assigned.add(task.id);
-                taskQueue.splice(i, 1);
-                forced = true;
-                break;
-            }
-
-            if (!forced && taskQueue.length > 0) {
-                // Should not happen with valid data, but safety break
-                showToast('ไม่สามารถจัดสมดุลได้ — ตรวจสอบ Precedence Relationships', 'error');
-                return;
-            }
+        if (stationJobs.length === 0) {
+            showToast('ไม่สามารถจัดสมดุลได้ — ตรวจสอบ Precedence Relationships', 'error');
+            return;
         }
-    }
 
-    // Push last station
-    if (currentStation.jobs.length > 0) {
-        stations.push(currentStation);
+        stations.push({ stationNum, jobs: stationJobs });
+        stationNum++;
     }
 
     renderBalanceTable(stations, ct);
@@ -318,25 +273,40 @@ function performLineBalancing() {
 
 function renderBalanceTable(stations, ct) {
     $('#balance-result-card').style.display = 'block';
+    const totalTime = nodes.reduce((sum, n) => sum + n.time, 0);
     let html = '';
+    let isFirstRow = true;
     stations.forEach(s => {
+        const stTime = s.jobs.reduce((sum, j) => sum + j.time, 0);
+        const eff = ((stTime / ct) * 100).toFixed(2);
         s.jobs.forEach((job, idx) => {
             const isFirst = idx === 0;
+            const isLast = idx === s.jobs.length - 1;
             const rowClass = isFirst ? 'station-first' : '';
-            const condition = job.cumTime <= ct ? 'YES' : 'NO';
-            const stationLabel = isFirst
-                ? `<strong>${s.stationNum}</strong>`
-                : '';
-            // First row of first station shows CT
+            const stationLabel = isFirst ? `<strong>${s.stationNum}</strong>` : '';
+            const stTimeLabel = isLast ? stTime : '';
+            const effLabel = isLast ? eff : '';
+            const ctLabel = isFirstRow ? ct : '';
             html += `<tr class="${rowClass}">
                 <td>${stationLabel}</td>
                 <td>${job.id}</td>
                 <td>${job.time}</td>
-                <td>${job.cumTime}</td>
-                <td style="color: ${condition === 'YES' ? 'var(--accent-3)' : 'var(--accent-danger)'}">${isFirst && s.stationNum === 1 ? ct + ' นาที' : condition}</td>
+                <td>${stTimeLabel}</td>
+                <td>${effLabel}</td>
+                <td>${ctLabel}</td>
             </tr>`;
+            isFirstRow = false;
         });
     });
+    // Total row
+    const lineEff = ((totalTime / (ct * stations.length)) * 100).toFixed(2);
+    html += `<tr style="border-top: 2px solid var(--accent-1); font-weight: 700;">
+        <td>Total</td><td></td><td>${totalTime}</td><td>${totalTime}</td><td></td><td></td>
+    </tr>`;
+    html += `<tr style="font-weight: 700;">
+        <td colspan="4" style="text-align:right;">Line Efficiency %</td>
+        <td style="color: var(--accent-3); font-size: 1.1rem;">${lineEff}</td><td></td>
+    </tr>`;
     balanceTableBody.innerHTML = html;
 }
 
@@ -783,122 +753,66 @@ function performRegionApproach() {
         if (predecessors[e.to]) predecessors[e.to].push(e.from);
     });
 
-    // Step 3 & 4: Assign tasks to stations (flexible greedy)
+    // Step 3 & 4: Assign tasks to stations
+    // For each station: pick first eligible from ordered list, then fill with best-fit
     const assigned = new Set();
     const stations = [];
     let stationNum = 1;
-    let currentStation = { stationNum, jobs: [] };
-    let stationTime = 0;
-    const taskQueue = [...orderedTasks];
 
-    while (taskQueue.length > 0) {
-        let bestFitIdx = -1;
-        let bestFitGap = Infinity;
+    while (assigned.size < nodes.length) {
+        let stationJobs = [];
+        let sTime = 0;
 
-        // Try to find the best task that fits and has all predecessors assigned
-        for (let i = 0; i < taskQueue.length; i++) {
-            const task = taskQueue[i];
-            const allPredsAssigned = predecessors[task.id].every(p => assigned.has(p));
-            if (!allPredsAssigned) continue;
-
-            const newTime = stationTime + task.time;
-            if (newTime <= ct) {
-                const gap = ct - newTime;
-                // Prefer tasks that fill the station closer to CT
-                // But also respect the region order (prefer earlier region tasks first)
-                if (bestFitIdx === -1) {
-                    bestFitIdx = i;
-                    bestFitGap = gap;
-                } else {
-                    // If this task has a gap of 0 (perfect fit), prefer it
-                    if (gap === 0) {
-                        bestFitIdx = i;
-                        bestFitGap = 0;
-                        break;
-                    }
-                    // Otherwise prefer the first eligible task (maintains region order)
-                    // unless the current best leaves too much gap and a later task fills better
-                    if (gap < bestFitGap && bestFitGap > 0) {
-                        // Only swap if the first eligible has already been added or the gap improvement is significant
-                    }
-                }
-                // Use the first eligible task (region order priority)
+        // Pick the first eligible task from ordered list
+        const remaining = orderedTasks.filter(t => !assigned.has(t.id));
+        let firstPicked = false;
+        for (const task of remaining) {
+            if (!predecessors[task.id].every(p => assigned.has(p))) continue;
+            if (sTime + task.time <= ct) {
+                sTime += task.time;
+                stationJobs.push({ id: task.id, time: task.time });
+                assigned.add(task.id);
+                firstPicked = true;
                 break;
             }
         }
 
-        if (bestFitIdx !== -1) {
-            const task = taskQueue[bestFitIdx];
-            stationTime += task.time;
-            currentStation.jobs.push({ id: task.id, time: task.time });
-            assigned.add(task.id);
-            taskQueue.splice(bestFitIdx, 1);
-        } else {
-            // No task fits in current station — close it and open new one
-            if (currentStation.jobs.length > 0) {
-                stations.push(currentStation);
-            }
-            stationNum++;
-            stationTime = 0;
-            currentStation = { stationNum, jobs: [] };
-
-            // Force the first eligible task
-            let forced = false;
-            for (let i = 0; i < taskQueue.length; i++) {
-                const task = taskQueue[i];
-                if (predecessors[task.id].every(p => assigned.has(p))) {
-                    stationTime += task.time;
-                    currentStation.jobs.push({ id: task.id, time: task.time });
-                    assigned.add(task.id);
-                    taskQueue.splice(i, 1);
-                    forced = true;
-                    break;
-                }
-            }
-            if (!forced && taskQueue.length > 0) {
-                showToast('ไม่สามารถจัดสมดุลได้ — ตรวจสอบ Precedence', 'error');
-                return;
-            }
+        if (!firstPicked) {
+            showToast('ไม่สามารถจัดสมดุลได้ — ตรวจสอบ Precedence', 'error');
+            return;
         }
 
-        // After assigning a task, try to fill remaining gap with later tasks
-        if (stationTime < ct && taskQueue.length > 0) {
-            let filled = true;
-            while (filled && stationTime < ct) {
-                filled = false;
-                // Search for tasks that fill the remaining gap, preferring perfect or near-perfect fit
-                let bestIdx = -1;
-                let bestGap = Infinity;
-                for (let i = 0; i < taskQueue.length; i++) {
-                    const task = taskQueue[i];
-                    if (!predecessors[task.id].every(p => assigned.has(p))) continue;
-                    const newTime = stationTime + task.time;
-                    if (newTime <= ct) {
-                        const gap = ct - newTime;
-                        if (gap < bestGap) {
-                            bestGap = gap;
-                            bestIdx = i;
-                        }
-                        if (gap === 0) break;
+        // Fill remaining capacity with best-fit eligible tasks
+        let filling = true;
+        while (filling && sTime < ct) {
+            filling = false;
+            const rem = ct - sTime;
+            let bestTask = null;
+            let bestGap = Infinity;
+            for (const task of orderedTasks) {
+                if (assigned.has(task.id)) continue;
+                if (!predecessors[task.id].every(p => assigned.has(p))) continue;
+                if (task.time <= rem) {
+                    const gap = rem - task.time;
+                    if (gap < bestGap) {
+                        bestGap = gap;
+                        bestTask = task;
                     }
+                    if (gap === 0) break;
                 }
-                if (bestIdx !== -1) {
-                    const task = taskQueue[bestIdx];
-                    stationTime += task.time;
-                    currentStation.jobs.push({ id: task.id, time: task.time });
-                    assigned.add(task.id);
-                    taskQueue.splice(bestIdx, 1);
-                    filled = true;
-                }
+            }
+            if (bestTask) {
+                sTime += bestTask.time;
+                stationJobs.push({ id: bestTask.id, time: bestTask.time });
+                assigned.add(bestTask.id);
+                filling = true;
             }
         }
 
-        // If station is full or no more tasks fit, close station when next iteration finds no fit
+        stations.push({ stationNum, jobs: stationJobs });
+        stationNum++;
     }
 
-    if (currentStation.jobs.length > 0) {
-        stations.push(currentStation);
-    }
 
     // Render results
     renderRegionStationTable(stations, ct);

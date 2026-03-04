@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPM Calculator Pro</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-project-diagram"></i>
+                <h1>CPM Calculator <span>Pro</span></h1>
+            </div>
+            <p class="subtitle">Critical Path Method Analysis & Network Diagram Generator</p>
+        </header>
+
+        <!-- Main Content Grid -->
+        <main class="main-content">
+            <!-- Left Column: Inputs -->
+            <section class="panel input-section">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-plus-circle"></i> Add Activity</h2>
+                </div>
+                <form id="activity-form" class="activity-form">
+                    <div class="form-group">
+                        <label for="act-id">Activity ID</label>
+                        <input type="text" id="act-id" placeholder="e.g., 1, A, Task1" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="act-name">Description (Optional)</label>
+                        <input type="text" id="act-name" placeholder="e.g., ปรับพื้น" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="act-duration">Duration</label>
+                        <input type="number" id="act-duration" placeholder="e.g., 3" min="0" step="any" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="act-preds">Predecessors (Comma separated)</label>
+                        <input type="text" id="act-preds" placeholder="e.g., 1, 3 or leave blank" autocomplete="off">
+                    </div>
+                    <button type="submit" class="btn-primary">
+                        <i class="fa-solid fa-arrow-down"></i> Add to Project
+                    </button>
+                    <button type="button" id="btn-load-example" class="btn-secondary">
+                        <i class="fa-solid fa-lightbulb"></i> Load Example
+                    </button>
+                </form>
+
+                <div class="panel-header mt-4">
+                    <h2><i class="fa-solid fa-list-check"></i> Project Activities</h2>
+                    <button id="btn-clear" class="btn-danger btn-sm"><i class="fa-solid fa-trash"></i> Clear
+                        All</button>
+                </div>
+                <div class="table-container list-container">
+                    <table id="input-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Duration</th>
+                                <th>Predecessors</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="input-tbody">
+                            <tr class="empty-row">
+                                <td colspan="5">No activities added yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="action-bar">
+                    <button id="btn-calculate" class="btn-calculate" disabled>
+                        <i class="fa-solid fa-calculator"></i> Calculate CPM
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Column: Results -->
+            <section class="panel results-section">
+                <!-- Summary Table -->
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-table"></i> Analysis Results</h2>
+                </div>
+
+                <div id="error-message" class="error-message hidden">
+                    <i class="fa-solid fa-triangle-exclamation"></i> <span id="error-text"></span>
+                </div>
+
+                <div class="table-container results-table-wrapper hidden" id="results-wrapper">
+                    <div class="stats-cards">
+                        <div class="stat-card">
+                            <div class="stat-title">Project Duration</div>
+                            <div class="stat-value" id="stat-duration">-</div>
+                        </div>
+                        <div class="stat-card critical">
+                            <div class="stat-title">Critical Path</div>
+                            <div class="stat-value" id="stat-path">-</div>
+                        </div>
+                    </div>
+
+                    <table id="results-table">
+                        <thead>
+                            <tr>
+                                <th>Activity</th>
+                                <th>Dur (<span class="math-var">t</span>)</th>
+                                <th title="Earliest Start">ES</th>
+                                <th title="Earliest Finish">EF</th>
+                                <th title="Latest Start">LS</th>
+                                <th title="Latest Finish">LF</th>
+                                <th title="Slack Time">Slack (<span class="math-var">S</span>)</th>
+                                <th>Critical</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Network Diagram -->
+                <div class="panel-header mt-4">
+                    <h2><i class="fa-solid fa-diagram-project"></i> Network Diagrams</h2>
+                    <div class="tabs">
+                        <button type="button" class="tab-btn active" data-target="aon-diagram">AON (Activity on
+                            Node)</button>
+                        <button type="button" class="tab-btn" data-target="aoa-diagram">AOA (Activity on Arrow)</button>
+                    </div>
+                </div>
+                <div class="diagram-container diagram-tabs">
+                    <div id="aon-diagram" class="mermaid-diagram tab-content active">
+                        <div class="placeholder-text">Add activities and calculate to see the AON diagram.</div>
+                    </div>
+                    <div id="aoa-diagram" class="mermaid-diagram tab-content">
+                        <div class="placeholder-text">Add activities and calculate to see the AOA diagram.</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2026 CPM Calculator Pro by Antigravity</p>
+        </footer>
+    </div>
+
+    <!-- Mermaid CDN (ESM wrapper) -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'dark',
+            fontFamily: 'Outfit',
+            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                nodeSpacing: 50,
+                rankSpacing: 80
+            }
+        });
+
+        // Expose to window for app.js
+        window.mermaidRenderer = mermaid;
+    </script>
+    <script src="app.js" defer></script>
+</body>
+
+</html>

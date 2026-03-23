@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Target Line Efficiency Optimizer</title>
+    <meta name="description" content="เครื่องมือค้นหาการจัดสมดุลสายการผลิตให้ได้ Line Efficiency ตามที่ต้องการ">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Hero Header -->
+    <header class="hero">
+        <div class="hero-bg"></div>
+        <div class="hero-content">
+            <h1>Target Line Efficiency</h1>
+            <p class="subtitle">Auto-Optimizer & Line Balancing Tool</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <div style="margin-bottom: 2rem; text-align: right;">
+            <a href="index.html" class="btn btn-secondary">🔙 กลับไปหน้า Helgeson-Birnie (หลัก)</a>
+        </div>
+
+        <!-- Section 1: Input Panel -->
+        <section class="panel" id="input-panel">
+            <div class="panel-header">
+                <span class="step-badge">1</span>
+                <h2>เพิ่ม Node & Edge</h2>
+            </div>
+            <div class="input-grid">
+                <!-- Add Node -->
+                <div class="card glass">
+                    <h3><span class="icon">⊕</span> เพิ่มขั้นตอน (Node)</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="node-id">หมายเลขขั้นตอน</label>
+                            <input type="number" id="node-id" min="1" placeholder="เช่น 1" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="node-time">เวลา (tᵢ)</label>
+                            <input type="number" id="node-time" min="0" step="0.1" placeholder="เช่น 4"
+                                autocomplete="off">
+                        </div>
+                        <button class="btn btn-primary" id="add-node-btn">เพิ่ม Node</button>
+                    </div>
+                </div>
+                <!-- Add Edge -->
+                <div class="card glass">
+                    <h3><span class="icon">→</span> เพิ่มความสัมพันธ์ (Edge)</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edge-from">จาก (From)</label>
+                            <input type="number" id="edge-from" min="1" placeholder="เช่น 1" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="edge-to">ไป (To)</label>
+                            <input type="text" id="edge-to" placeholder="ระบุหลายค่าได้ เช่น 2, 3, 4" autocomplete="off">
+                        </div>
+                        <button class="btn btn-secondary" id="add-edge-btn">เพิ่ม Edge</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Tables -->
+            <div class="input-grid">
+                <div class="card glass">
+                    <h3>📋 รายการ Nodes</h3>
+                    <div class="table-wrap">
+                        <table id="nodes-table">
+                            <thead>
+                                <tr>
+                                    <th>ขั้นตอน</th>
+                                    <th>เวลา (tᵢ)</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <p class="empty-msg" id="no-nodes">ยังไม่มีข้อมูล — เพิ่ม Node ด้านบน</p>
+                </div>
+                <div class="card glass">
+                    <h3>🔗 รายการ Edges</h3>
+                    <div class="table-wrap">
+                        <table id="edges-table">
+                            <thead>
+                                <tr>
+                                    <th>จาก</th>
+                                    <th>ไป</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <p class="empty-msg" id="no-edges">ยังไม่มีข้อมูล — เพิ่ม Edge ด้านบน</p>
+                </div>
+            </div>
+
+            <div class="action-bar">
+                <button class="btn btn-accent" id="load-example-btn">📂 โหลดตัวอย่าง 21 Nodes</button>
+                <button class="btn btn-danger" id="clear-all-btn">🗑️ ล้างข้อมูลทั้งหมด</button>
+            </div>
+        </section>
+
+        <!-- Section 2: Precedence Network Diagram -->
+        <section class="panel" id="diagram-panel">
+            <div class="panel-header">
+                <span class="step-badge">2</span>
+                <h2>แผนภาพเครือข่ายกิจกรรม (Precedence Network Diagram)</h2>
+            </div>
+            <div class="card glass canvas-card">
+                <canvas id="network-canvas" width="1100" height="500"></canvas>
+            </div>
+        </section>
+
+        <!-- Section 3: Target Line Efficiency -->
+        <section class="panel" id="optimize-panel">
+            <div class="panel-header">
+                <span class="step-badge">3</span>
+                <h2>ค้นหาการจัดรูปแบบตามเป้าหมาย (Auto Optimizer)</h2>
+            </div>
+            <div class="formula-box glass">
+                <p>ระบบจะค้นหาค่า Cycle Time (CT) และวิธีกำหนดงาน เพื่อให้ได้ <strong>Line Efficiency ≥ Target</strong></p>
+            </div>
+            
+            <div class="card glass">
+                <div class="form-row center-row">
+                    <div class="form-group">
+                        <label for="target-efficiency">Target Line Efficiency (%)</label>
+                        <input type="number" id="target-efficiency" min="1" max="100" step="0.1" placeholder="เช่น 90 (ไม่บังคับ)" autocomplete="off">
+                    </div>
+                    <div class="form-group" style="margin-left: 15px;">
+                        <label for="fixed-cycle-time">Cycle Time (นาที)</label>
+                        <input type="number" id="fixed-cycle-time" min="1" step="0.1" placeholder="ไม่บังคับ" autocomplete="off">
+                    </div>
+                    <button class="btn btn-primary btn-large" style="margin-left: 15px;" id="optimize-btn">🔍 เริ่มค้นหา Line Balancing</button>
+                </div>
+                <div id="search-status" style="display:none; text-align: center; margin-top: 15px; color: var(--accent-1); font-weight: 500;">
+                    กำลังค้นหา...
+                </div>
+            </div>
+
+            <!-- Auto Balance Results -->
+            <div class="card glass" id="optimize-result-card" style="display:none; margin-top:20px;">
+                <h3>🎉 ผลลัพธ์ที่พบ: จัดงานสำเร็จ!</h3>
+                <div style="margin-bottom: 15px; background: rgba(88, 166, 255, 0.1); padding: 15px; border-radius: 8px;">
+                    <p><strong>Cycle Time ที่เหมาะสม (CT): </strong> <span id="opt-found-ct" style="color:var(--accent-1); font-weight:700;">-</span> นาที</p>
+                    <p><strong>จำนวนสถานีงาน (M): </strong> <span id="opt-found-m" style="color:var(--accent-1); font-weight:700;">-</span> สถานี</p>
+                    <p><strong>Line Efficiency ได้: </strong> <span id="opt-found-eff" style="color:var(--success-color); font-weight:700; font-size: 1.2rem;">-</span></p>
+                </div>
+                
+                <div class="table-wrap">
+                    <table id="optimize-balance-table">
+                        <thead>
+                            <tr>
+                                <th>Station</th>
+                                <th>Job</th>
+                                <th>Processing Time</th>
+                                <th>Station Time</th>
+                                <th>Station Efficiency %</th>
+                                <th>Cycle Time (min)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                
+                <!-- Summary Table -->
+                <h3 style="margin-top:20px;">สรุปผลการจัดสถานี</h3>
+                <div class="table-wrap">
+                    <table id="optimize-summary-table">
+                        <thead>
+                            <tr>
+                                <th>Station</th>
+                                <th>Jobs</th>
+                                <th>Station Time</th>
+                                <th>Station Efficiency %</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card glass" id="optimize-failed-card" style="display:none; margin-top:20px; border-color: rgba(248, 81, 73, 0.4);">
+                <h3 style="color: #f85149;">❌ ไม่พบรูปแบบการจัดงานที่ได้เป้าหมาย</h3>
+                <p>ระบบตรวจสอบทุก Cycle Time แล้ว ไม่สามารถทำ Line Efficiency ถึง <span id="failed-target">-</span>% ได้</p>
+                <p>ลองลด Target Line Efficiency ลง หรือเพิ่มเวลาทำงานแต่ละขั้นตอน</p>
+            </div>
+            
+        </section>
+    </main>
+
+    <footer>
+        <p>Target Efficiency Optimizer &copy; 2026</p>
+    </footer>
+
+    <script src="optimize.js"></script>
+</body>
+
+</html>
